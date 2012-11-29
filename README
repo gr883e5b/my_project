@@ -25,7 +25,7 @@ ts packet header の PCR より算出しているためです。
 iconv を組み込んで、文字コード変換を。csv ファイルは、UTF-8 のみ。標準出力に SHIFT_JIS
 (Windows コマンドプロンプトを想定)へ、*.meta 出力に EUC-JP へ、各々変換してます。
 
-> gcc -o gen_meta.exe -liconv
+> gcc -o gen_meta.exe gen_meta.c -liconv
 
 csv ファイルの例
 
