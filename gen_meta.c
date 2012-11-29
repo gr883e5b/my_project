@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <iconv.h>
 
 /* meta 1768 byte */
 #define META_FILE_SIZE 0x6E8
@@ -19,7 +20,7 @@
 /* prototype */
 unsigned long get_PCR_both_ends(FILE* fp, char* str);
 void get_duration_str(unsigned long, char*);
-
+static int charset_convert(const char*, const char*, const char*, size_t, char*, size_t);
 
 void main(int argc, char *argv[])
 {
@@ -28,6 +29,8 @@ void main(int argc, char *argv[])
 	char id[12];
 	char date[19];
 	char title[128];
+	char title_e[128];
+	char title_s[128];
 	unsigned int def; // 1 = High Definition, 2 = Standard
 
 	unsigned long duration;
@@ -40,7 +43,7 @@ void main(int argc, char *argv[])
 	FILE* chapfp;
 
 	if(argc != 3){
-		printf("Usage: foo.exe <titles.euc.csv> <directory>\n\n");
+		printf("Usage: foo.exe <titles.utf-8.csv> <directory>\n\n");
 		exit(EXIT_FAILURE);
 	}
 
@@ -54,6 +57,7 @@ void main(int argc, char *argv[])
 	char   ts[strlen(argv[2]) + sizeof(id) + 3]; // *.ts
 	char meta[sizeof(id) + 3 + 5]; // *.ts.meta
 	char chap[sizeof(id) + 3 + 5]; // *.ts.chap
+
 
 	/*
 	unsigned short int col;
@@ -76,23 +80,29 @@ void main(int argc, char *argv[])
 
 		ret = sscanf(buf, "\"%[^,\"]\",\"%[^,\"]\",%d,\"%[^,\"]\"", id, date, &def, title);
 		if(ret != 4) continue;
+
+		// stdout 用(SHIFT_JIS)
+		charset_convert("UTF-8", "SHIFT_JIS", title, sizeof(title), title_s, sizeof(title_s));
+		// *.meta 用(EUC-JP)
+		charset_convert("UTF-8", "EUC-JP", title, sizeof(title), title_e, sizeof(title_e));
+
 		strcpy(ts, argv[2]); strcat(ts, id); strcat(ts, ".ts");
 		strcpy(meta, id); strcat(meta, ".ts.meta");
 		strcpy(chap, id); strcat(chap, ".ts.chap");
 
 		if((tsfp = fopen(ts, "rb")) == NULL){
-			printf("- %s; %s; %d; \n  %s;\n", id, date, def, title);
+			printf("- %s; %s; %d; \n  %s;\n", id, date, def, title_s);
 			continue;
 		}
 
 		duration = get_PCR_both_ends(tsfp, duration_str);
-		printf("* %s; %s; %d; > %8d = %s\n  %s;\n", id, date, def, duration, duration_str, title);
+		printf("* %s; %s; %d; > %8d = %s\n  %s;\n", id, date, def, duration, duration_str, title_s);
 
 		if((metafp = fopen(meta, "wb")) == NULL){
 			printf("- Can NOT open %s (*.ts.meta)\n", meta);
 			continue;
 		}
-		write_meta(metafp, date, def, duration_str, title);
+		write_meta(metafp, date, def, duration_str, title_e);
 		fclose(metafp);
 
 		if((chapfp = fopen(chap, "wb")) == NULL){
@@ -203,3 +213,30 @@ void get_duration_str(unsigned long duration, char* str)
 		duration % 1000
 	);
 }
+
+static int charset_convert(const char* from_charset, const char* to_charset, const char* src_buff, size_t src_size, char* dst_buff, size_t dst_size)
+{
+	iconv_t icd;
+	char* inbuff;
+	char* outbuff;
+	size_t inbuff_size, outbuff_size;
+	int ret;
+
+	/* Charset を変換する descriptor を生成する */
+	icd = iconv_open(to_charset, from_charset);
+	if (icd < 0) {
+		fprintf(stderr, "Error: iconv_open\n");
+		return -1;
+	}
+
+	inbuff = (char*)src_buff;
+	inbuff_size = src_size;
+	outbuff = dst_buff;
+	outbuff_size = dst_size;
+	ret = iconv(icd, &inbuff, &inbuff_size, &outbuff, &outbuff_size);
+	//printf("ret = %d inbuff_size = %d outbuff_size = %d\n", ret, inbuff_size, outbuff_size);
+	iconv_close(icd);
+
+	return (dst_size - outbuff_size);
+}
+
