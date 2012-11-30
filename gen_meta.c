@@ -25,59 +25,49 @@ static int charset_convert(const char*, const char*, const char*, size_t, char*,
 void main(int argc, char *argv[])
 {
 	char buf[BUFSIZ];
+	unsigned int ret;
 
+	// titles.csv のカラム
 	char id[12];
 	char date[19];
+	unsigned int def; // 1 = High Definition, 2 = Standard
 	char title[128];
+
+	// title 文字コード変換
 	char title_e[128];
 	char title_s[128];
-	unsigned int def; // 1 = High Definition, 2 = Standard
 
+	// *.ts ファイルの再生時間
 	unsigned long duration;
 	char duration_str[12];
 
-	unsigned int ret;
+	// 引数 <ts_directory> がない場合、終了
+	if(argc < 2){
+		fprintf(stderr, "Usage: foo.exe <ts_directory>\n\n");
+		exit(EXIT_FAILURE);
+	}
+
+	// argv[1] = <ts_directory> 内の(フルパス)ファイル名(*.ts, *.ts.meta, *.ts.chap)
+	char ts[strlen(argv[1]) + sizeof(id) + 3]; // *.ts
+	char meta[sizeof(id) + 3 + 5];             // *.ts.meta
+	char chap[sizeof(id) + 3 + 5];             // *.ts.chap
+
 	FILE* csvfp;
 	FILE* tsfp;
 	FILE* metafp;
 	FILE* chapfp;
 
-	if(argc != 3){
-		printf("Usage: foo.exe <titles.utf-8.csv> <directory>\n\n");
-		exit(EXIT_FAILURE);
-	}
-
-	// *.csv(euc-jp) を開く
+	// .exe と同じディレクトリの titles.csv(UTF-8) を開く。開けない場合、終了
 	// "000","0000/00/00 00_00_00",1,"title"
-	if((csvfp = fopen(argv[1], "r")) == NULL){
-		printf("Can't open [%s].\n", argv[1]);
+	char csv[128];
+	sprintf(csv, "%s\\titles.csv", dirname(argv[0]));
+	if((csvfp = fopen(csv, "r")) == NULL){
+		printf("Can't open [%s].\n", csv);
 		exit(EXIT_FAILURE);
 	}
-
-	char   ts[strlen(argv[2]) + sizeof(id) + 3]; // *.ts
-	char meta[sizeof(id) + 3 + 5]; // *.ts.meta
-	char chap[sizeof(id) + 3 + 5]; // *.ts.chap
-
-
-	/*
-	unsigned short int col;
-	const char delim[] = ",\"";
-	char* p;
-	*/
+	printf("%s is found.\n", csv);
 
 	while ((NULL != fgets(buf, BUFSIZ, csvfp))) {
-	/*
-		col = 0;
-		while(1){
-			p = (col == 0) ? strtok(buf, delim): strtok(NULL, delim);
-			if(p == NULL) break;
-			if(col == 0 && strlen(p) < 3) break;
-			printf("%s | ", p);
-			col++;
-		}
-		if(col != 0) printf("\n");
-	*/
-
 		ret = sscanf(buf, "\"%[^,\"]\",\"%[^,\"]\",%d,\"%[^,\"]\"", id, date, &def, title);
 		if(ret != 4) continue;
 
@@ -86,7 +76,7 @@ void main(int argc, char *argv[])
 		// *.meta 用(EUC-JP)
 		charset_convert("UTF-8", "EUC-JP", title, sizeof(title), title_e, sizeof(title_e));
 
-		strcpy(ts, argv[2]); strcat(ts, id); strcat(ts, ".ts");
+		strcpy(ts, argv[1]); strcat(ts, id); strcat(ts, ".ts");
 		strcpy(meta, id); strcat(meta, ".ts.meta");
 		strcpy(chap, id); strcat(chap, ".ts.chap");
 
@@ -114,6 +104,7 @@ void main(int argc, char *argv[])
 
 		fclose(tsfp);
 	}
+
 	fclose(csvfp);
 }
 
@@ -239,4 +230,24 @@ static int charset_convert(const char* from_charset, const char* to_charset, con
 
 	return (dst_size - outbuff_size);
 }
+
+	/*
+	unsigned short int col;
+	const char delim[] = ",\"";
+	char* p;
+
+	while ((NULL != fgets(buf, BUFSIZ, csvfp))) {
+		col = 0;
+		while(1){
+			p = (col == 0) ? strtok(buf, delim): strtok(NULL, delim);
+			if(p == NULL) break;
+			if(col == 0 && strlen(p) < 3) break;
+			printf("%s | ", p);
+			col++;
+		}
+		if(col != 0) printf("\n");
+		// ...
+	}
+	*/
+
 
